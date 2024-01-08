@@ -24,6 +24,8 @@ you want to run is installed and is in PATH.
 - Crystal
 - Csharp
 - D
+- Dart
+- Deno
 - Elixir
 - Elm
 - Erlang

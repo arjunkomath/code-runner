@@ -2,11 +2,11 @@
 
 JSON=$(cat <<-END
 {
-    "language": "python",
+    "language": "deno",
     "files": [
         {
-            "name": "main.py",
-            "content": "print(42)"
+            "name": "hello.ts",
+            "content": "import _ from 'npm:lodash';\nconsole.log(_.partition([1, 2, 3, 4], n => n % 2));"
         }
     ]
 }
