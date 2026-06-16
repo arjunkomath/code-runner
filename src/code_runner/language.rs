@@ -159,7 +159,7 @@ pub fn run_instructions(
 
         Language::Deno => RunInstructions {
             build_commands: vec![],
-            run_command: format!("deno run -A {}", main_file_str),
+            run_command: format!("deno run -q -A {}", main_file_str),
         },
 
         Language::Elixir => RunInstructions {
