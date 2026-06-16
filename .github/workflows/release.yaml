@@ -1,12 +1,18 @@
 name: Build and upload release
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to upload the asset to
+        required: true
   release:
     types: [created]
 
 env:
   APP_NAME: code-runner
   ARCHIVE_NAME: code-runner_linux-x64.tar.gz
+  RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
 
 jobs:
   build:
@@ -17,17 +23,23 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install latest rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install musl toolchain
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Build application
         run: |
-          cargo build --release
-          tar -czf $ARCHIVE_NAME -C target/release $APP_NAME
+          cargo build --release --target x86_64-unknown-linux-musl
+          file target/x86_64-unknown-linux-musl/release/$APP_NAME
+          tar -czf $ARCHIVE_NAME -C target/x86_64-unknown-linux-musl/release $APP_NAME
 
       - name: Upload release asset
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.event.release.tag_name }}" "$ARCHIVE_NAME" --clobber
+        run: gh release upload "$RELEASE_TAG" "$ARCHIVE_NAME" --clobber
