@@ -239,7 +239,7 @@ pub fn run_instructions(
 
             RunInstructions {
                 build_commands: vec![format!("javac {}", main_file_str)],
-                run_command: format!("java {}", titlecase_ascii(file_stem)),
+                run_command: format!("java {}", file_stem),
             }
         }
 
@@ -423,5 +423,30 @@ fn titlecase_ascii(s: &str) -> String {
     } else {
         let (head, tail) = s.split_at(1);
         format!("{}{}", head.to_ascii_uppercase(), tail)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn java_run_command_preserves_file_stem_case() {
+        let files = non_empty_vec::from_vec(vec![path::PathBuf::from("main.java")]).unwrap();
+
+        let instructions = run_instructions(&Language::Java, files);
+
+        assert_eq!(instructions.build_commands, vec!["javac main.java"]);
+        assert_eq!(instructions.run_command, "java main");
+    }
+
+    #[test]
+    fn java_run_command_still_supports_main_java() {
+        let files = non_empty_vec::from_vec(vec![path::PathBuf::from("Main.java")]).unwrap();
+
+        let instructions = run_instructions(&Language::Java, files);
+
+        assert_eq!(instructions.build_commands, vec!["javac Main.java"]);
+        assert_eq!(instructions.run_command, "java Main");
     }
 }
