@@ -130,8 +130,8 @@ pub fn run_instructions(
         },
 
         Language::Crystal => RunInstructions {
-            build_commands: vec![],
-            run_command: format!("crystal run {}", main_file_str),
+            build_commands: vec![format!("crystal build --no-debug {} -o a.out", main_file_str)],
+            run_command: "./a.out".to_string(),
         },
 
         Language::Csharp => RunInstructions {
@@ -448,5 +448,18 @@ mod tests {
 
         assert_eq!(instructions.build_commands, vec!["javac Main.java"]);
         assert_eq!(instructions.run_command, "java Main");
+    }
+
+    #[test]
+    fn crystal_builds_binary_before_running() {
+        let files = non_empty_vec::from_vec(vec![path::PathBuf::from("test")]).unwrap();
+
+        let instructions = run_instructions(&Language::Crystal, files);
+
+        assert_eq!(
+            instructions.build_commands,
+            vec!["crystal build --no-debug test -o a.out"]
+        );
+        assert_eq!(instructions.run_command, "./a.out");
     }
 }
