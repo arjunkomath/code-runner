@@ -124,7 +124,7 @@ pub fn run_instructions(
             build_commands: vec![format!(
                 "clang++ -std=c++11 -o a.out {} {}",
                 main_file_str,
-                source_files(other_files, "c")
+                source_files_with_extensions(other_files, &["cpp", "cc", "cxx", "c"])
             )],
             run_command: "./a.out".to_string(),
         },
@@ -386,6 +386,20 @@ pub fn run_instructions(
 
 fn source_files(files: Vec<path::PathBuf>, extension: &str) -> String {
     space_separated_files(filter_by_extension(files, extension))
+}
+
+fn source_files_with_extensions(files: Vec<path::PathBuf>, extensions: &[&str]) -> String {
+    let matched = files
+        .into_iter()
+        .filter(|file| {
+            file.extension()
+                .and_then(|s| s.to_str())
+                .map(|ext| extensions.contains(&ext))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    space_separated_files(matched)
 }
 
 fn filter_by_extension(files: Vec<path::PathBuf>, extension: &str) -> Vec<path::PathBuf> {

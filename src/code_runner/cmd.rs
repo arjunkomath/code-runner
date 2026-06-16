@@ -1,10 +1,10 @@
+use std::fmt;
 use std::io;
 use std::io::Write;
+use std::path;
 use std::process;
 use std::string;
-use std::path;
-use std::fmt;
-
+use std::thread;
 
 pub struct Options {
     pub work_path: path::PathBuf,
@@ -37,12 +37,12 @@ impl fmt::Display for Error {
     }
 }
 
-
 #[derive(Debug)]
 pub enum ExecuteError {
     Execute(io::Error),
     CaptureStdin(),
     WriteStdin(io::Error),
+    WriteStdinPanic(),
     WaitForChild(io::Error),
 }
 
@@ -59,6 +59,10 @@ impl fmt::Display for ExecuteError {
 
             ExecuteError::WriteStdin(err) => {
                 write!(f, "Failed to write to stdin. {}", err)
+            }
+
+            ExecuteError::WriteStdinPanic() => {
+                write!(f, "Panicked while writing to stdin.")
             }
 
             ExecuteError::WaitForChild(err) => {
@@ -79,18 +83,34 @@ pub fn execute(options: Options) -> Result<process::Output, ExecuteError> {
         .spawn()
         .map_err(ExecuteError::Execute)?;
 
-    if let Some(stdin) = options.stdin {
-        child.stdin
-            .as_mut()
-            .ok_or(ExecuteError::CaptureStdin())?
-            .write_all(stdin.as_bytes())
+    // Write stdin from a separate thread so the child can drain its stdout/stderr
+    // concurrently. Writing it all before reading output would deadlock once a
+    // pipe buffer fills.
+    let stdin_handle = match options.stdin {
+        Some(stdin) => {
+            let mut child_stdin = child.stdin.take().ok_or(ExecuteError::CaptureStdin())?;
+
+            let handle = thread::spawn(move || child_stdin.write_all(stdin.as_bytes()));
+
+            Some(handle)
+        }
+
+        None => None,
+    };
+
+    let output = child
+        .wait_with_output()
+        .map_err(ExecuteError::WaitForChild)?;
+
+    if let Some(handle) = stdin_handle {
+        handle
+            .join()
+            .map_err(|_| ExecuteError::WriteStdinPanic())?
             .map_err(ExecuteError::WriteStdin)?;
     }
 
-    child.wait_with_output()
-        .map_err(ExecuteError::WaitForChild)
+    Ok(output)
 }
-
 
 #[derive(Debug)]
 pub struct SuccessOutput {
@@ -150,25 +170,24 @@ impl fmt::Display for OutputError {
     }
 }
 
-
 pub fn get_output(output: process::Output) -> Result<SuccessOutput, OutputError> {
     if output.status.success() {
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(OutputError::ReadStdout)?;
+        let stdout = String::from_utf8(output.stdout).map_err(OutputError::ReadStdout)?;
 
-        let stderr = String::from_utf8(output.stderr)
-            .map_err(OutputError::ReadStderr)?;
+        let stderr = String::from_utf8(output.stderr).map_err(OutputError::ReadStderr)?;
 
-        Ok(SuccessOutput{stdout, stderr})
+        Ok(SuccessOutput { stdout, stderr })
     } else {
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(OutputError::ReadStdout)?;
+        let stdout = String::from_utf8(output.stdout).map_err(OutputError::ReadStdout)?;
 
-        let stderr = String::from_utf8(output.stderr)
-            .map_err(OutputError::ReadStderr)?;
+        let stderr = String::from_utf8(output.stderr).map_err(OutputError::ReadStderr)?;
 
         let exit_code = output.status.code();
 
-        Err(OutputError::ExitFailure(ErrorOutput{stdout, stderr, exit_code}))
+        Err(OutputError::ExitFailure(ErrorOutput {
+            stdout,
+            stderr,
+            exit_code,
+        }))
     }
 }
